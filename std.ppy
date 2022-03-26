@@ -1,0 +1,41 @@
+// Standard Library for Pyetty!
+
+// Output to console
+func std::print( value ){
+  .globals;
+  $`exec("import sys") or sys.stdout.write(str(etty.value) + '\n')`;
+} -> None
+
+// Get input from console
+func std::input( value ){
+  .globals;
+  $`input(etty.value['VALUE'] if type(etty.value) == dict else etty.value)`;
+} -> None
+
+// Debugging local objects
+func std::debug(){
+  .globals;
+  return $`etty.__dict__`;
+} -> None
+
+// Length of supposed object
+func std::len(object){
+  .globals;
+  return $`len(etty.object['VALUE']) if type(etty.object) == dict\
+    else len(etty.object)`;
+} -> Int
+
+// Generate random number
+func std::random( start of Int, end of Int){
+    return $`exec("import random") or random.randint(etty.start, etty.end)`;
+} -> Int
+
+// Convert object to string
+func std::toString( variable ){
+    return $`str(etty.variable)`;
+} -> String
+
+// Convert object to Int
+func std::toInt( variable ){
+    return $`int(etty.variable)`;
+} -> Int

@@ -1,0 +1,30 @@
+import "./std.ppy";
+
+func get_greeting(Name of String){
+    return "Hello " + Name + "!";
+} -> String
+
+let x = get_greeting("Max");
+
+let length = std::len(x);
+
+std::print(length);
+
+
+let x = 0;
+
+func toString( variable ){
+    return $`str(etty.variable)`;
+} -> String
+
+while (x != 10){
+    .globals;
+    // First we must create a new variable of the correct type!
+    let y = toString(x);
+    // Now we can print it!
+    std::print( "X is " + y );
+    // Change value
+    let x = x + 1;
+}
+
+std::print(x);
