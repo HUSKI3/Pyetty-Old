@@ -1,15 +1,2 @@
-import "./std.ppy";
-
-let x = std::input("> ");
-let x = std::toInt(x);
-
-func ifEven(x of Int){
-    .globals;
-    if (x / 2){
-        return 'Yes!';
-    } else {
-        return 'No :(';
-    }
-} -> String
-
-std::print(ifEven(2));
+let x = 2 + 2;
+let y = 3 + 3;
