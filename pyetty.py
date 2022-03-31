@@ -1,5 +1,6 @@
 import pprint
 import logging
+from re import L
 import sys
 
 from lexer import PyettyLexer
@@ -95,28 +96,36 @@ class PyettyInterpreter:
         }
 
     def proc_conditional(self, tree):
-        # print(tree)
         _if = tree['IF'][1] if tree['IF'][0] else None
         _else = tree['ELSE'][1] if tree['ELSE'][0] else None
-        _elif = tree['ELSE_IF'][1][0] if tree['ELSE_IF'][0] else None
+        _elif = tree['ELSE_IF'] if tree['ELSE_IF'] else None
+        elif_ran = False
+
 
         if _if:
             _code = _if['CODE']
             _condition = _if['CONDITION']
             if self.eval_expr(_condition):
                 self.run(tree=_code)
-            
-            if _elif:
-                _code = _elif['CODE']
-                _condition = _elif['CONDITION']
-                if self.eval_expr(_condition):
-                    self.run(tree=_code)
-            
-            if _else:
-                _code = _else['CODE']
-                _condition = _if['CONDITION']
-                if not self.eval_expr(_condition):
-                    self.run(tree=_code)
+            else:
+                
+                if _elif:
+                    for _e in _elif[1:]:
+                        if _e is None:
+                            continue
+                        if type(_e) == tuple:
+                            _e = _e[0]
+                        _code = _e['CODE']
+                        _condition = _e['CONDITION']
+                        if self.eval_expr(_condition):
+                            self.run(tree=_code)
+                            elif_ran = True
+    
+                if _else and not elif_ran:
+                    _code = _else['CODE']
+                    _condition = _if['CONDITION']
+                    if not self.eval_expr(_condition):
+                        self.run(tree=_code)
 
         
     
@@ -255,8 +264,7 @@ class PyettyInterpreter:
                 raise Exception(f'No class {_class} in {self.locals}!')
 
             if _func not in self.locals[_class][_class]:
-                raise Exception('!!! Unbound method, tree:',
-                                tree, self.locals[_class])
+                raise Exception(f'!!! Unbound method {_func}, tree: {self.locals[_class]}')
             _vars = []
             if 'POSITIONAL_ARGS' in tree['FUNCTION_ARGUMENTS']:
                 for var in tree['FUNCTION_ARGUMENTS']['POSITIONAL_ARGS']:
@@ -429,15 +437,44 @@ class PyettyInterpreter:
             two = self.eval_expr(two)
             #print('two tried!')
         return one == two
+    
+    def create_dict(self, tree):
+        _ = {}
+        for item in tree[0]['ITEMS']:
+            r = item[0][1]['VALUE']
+            v = item[1][1]['VALUE']
+            _[r] = v
+        return _
+
+    def get_assoc_index(self, tree):
+        print(tree)
+        soc = self.eval_expr(tree[0]['EXPRESSION'])
+        idx = tree[0]['INDEX'][1]['VALUE']
+        while type(idx) == dict:
+            idx = self.eval_expr(idx)
+        print(soc, idx)
+        return soc['VALUE'].get(idx)
 
     def eval_expr(self, tree):
-        print(tree)
+        # print(tree)
         # New variable type matching
         if type(tree) == dict:
-            # Ignore resolving or type matching!
+            
+            if 'TYPE' in tree:
+                if tree['TYPE'] == 'ASSOC_ARRAY':
+                    return tree['VALUE']
+
+            # Below is only valid for legacy code,
+            # With the addition of assoc arrays 
+            # this is no longer valid
+
+            # --Ignore resolving or type matching!
             # This is because we fed in a raw type!
-            # A raw type doesn't require type-matching!
-            return tree['VALUE']
+            # A raw type doesn't require type-matching! --
+            try:
+                return tree['VALUE']
+            except:
+                raise Exception(f'{tree} has no valid entry point...')
 
         elif type(tree) == str or type(tree) == int:
             # Seems like the function bounced!
@@ -454,6 +491,8 @@ class PyettyInterpreter:
             'INT': self.eval_int,
             'LIST': self.eval_list,
             'GET_INDEX': self.eval_get_index,
+            'ASSOC_ARRAY': self.create_dict,
+            'GET_ASSOC_INDEX': self.get_assoc_index,
             # Math
             'ADD': self.eval_add,
             'SUB': self.eval_sub,

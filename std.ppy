@@ -6,6 +6,18 @@ func std::print( value ){
   $`exec("import sys") or sys.stdout.write(str(etty.value) + '\n')`;
 } -> None
 
+// Output to console
+func std::fprint( value ){
+  .globals;
+  $`exec("import sys") or sys.stdout.write(str(etty.value))`;
+} -> None
+
+// Output to console
+func std::lprint(){
+  .globals;
+  $`exec("import sys") or sys.stdout.write("\n")`;
+} -> None
+
 // Get input from console
 func std::input( value ){
   .globals;

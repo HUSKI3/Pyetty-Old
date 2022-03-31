@@ -66,7 +66,8 @@ class PyettyLexer(Lexer):
         "]",
         "\\",
         ".",
-        "?"
+        "?",
+        "^"
     }
 
     ignore = " \t"

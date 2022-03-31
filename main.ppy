@@ -1,2 +1,8 @@
-let x = 2 + 2;
-let y = 3 + 3;
+func main(){
+    let x = 45;
+    print("Hello");
+    if (x > 2){
+        print("no");
+    }
+    return 0;
+} -> Int

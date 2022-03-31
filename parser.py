@@ -1,5 +1,5 @@
 from sly import Parser
-
+import logging
 from lexer import PyettyLexer
 
 class PyettyParser(Parser):
@@ -591,6 +591,11 @@ class PyettyParser(Parser):
     def get_index(self, p):
         return ("GET_INDEX", {"EXPRESSION": p.expression0, "INDEX": p.expression1}, p.lineno)
 
+    @_("expression '^' expression")
+    def get_index(self, p):
+        return ("GET_ASSOC_INDEX", {"EXPRESSION": p.expression0, "INDEX": p.expression1}, p.lineno)
+
+
     @_("'{' positional_args '}'")
     def _tuple(self, p):
         return ("TUPLE", {"ITEMS": p.positional_args})
@@ -663,7 +668,7 @@ class PyettyParser(Parser):
     def id(self, p):
         return ("ID", {"VALUE": p.ID}, p.lineno)
 
-    @_(r"'\' assoc_array_items '\'")
+    @_(r"'{' assoc_array_items '}'")
     def assoc_array(self, p):
         return ("ASSOC_ARRAY", {"ITEMS": p.assoc_array_items})
 
