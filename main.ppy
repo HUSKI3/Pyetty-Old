@@ -1,8 +1,10 @@
-func main(){
-    let x = 45;
-    print("Hello");
-    if (x > 2){
-        print("no");
-    }
-    return 0;
-} -> Int
+import "./std.ppy";
+import "./ext_files.ppy";
+
+let contents = ext_files::read("k.py");
+
+std::print(contents);
+
+void(null) ==> {
+    std::print("");
+};

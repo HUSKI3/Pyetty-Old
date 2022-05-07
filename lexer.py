@@ -41,7 +41,10 @@ class PyettyLexer(Lexer):
         TELSE,
         PYTHON_CODE_EXEC,
         OF,
-        GLOBAL
+        GLOBAL,
+        DEFINE,
+        CHECK,
+        DEPENDS
     }
     literals = {
         "+",
@@ -67,7 +70,9 @@ class PyettyLexer(Lexer):
         "\\",
         ".",
         "?",
-        "^"
+        "^",
+        "#",
+        "_"
     }
 
     ignore = " \t"
@@ -78,7 +83,7 @@ class PyettyLexer(Lexer):
 
     PYTHON_CODE = r"\$`[.\W\w]*?`"
     PYTHON_CODE_EXEC = r"\$e`[.\W\w]*?`"
-    STRING = r"(\".*?(?<!\\)(\\\\)*\"|'.*?(?<!\\)(\\\\)*')"
+    STRING = r'"[\s\S]*?"' #r"(\".*?(?<!\\)(\\\\)*\"|'.*?(?<!\\)(\\\\)*')"
     ID = r"(--[a-zA-Z_]([a-zA-Z0-9_]|!)*--|[a-zA-Z_]([a-zA-Z0-9_]|!)*)"
     ID["func"] = FUNC
     ID["class"] = CLASS
@@ -101,6 +106,9 @@ class PyettyLexer(Lexer):
     ID["let"] = LET
     ID["of"] = OF
     ID["globals"] = GLOBAL
+    ID["define"] = DEFINE
+    ID["depends"] = DEPENDS
+    ID["check"] = CHECK
 
     TARROW = r'->'
     FARROW = r'\=\=>'

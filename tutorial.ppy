@@ -1,0 +1,162 @@
+import "./std.ppy";
+
+//
+//  Variable declaration and useage
+//
+
+//  Unlike other languages, pyetty 
+//  requires you to redeclare a variable
+//  when reassigning a value.
+
+let x = 2;
+let x = 2 + x;
+
+// But despite such an odd mechanic
+// this let's you track your declaration
+// and variable useage more accurately
+// across classes (and namespaces!)
+
+
+//
+// Functions
+//
+
+// Functions follow a pretty simple format 
+// in Pyetty:
+//  func NAME (ARGUMENTS) {
+//      CODE_BLOCK 
+//  } -> RETURN_TYPE
+
+func coolFunction() {
+    return "Hello!
+Multiline!";
+} -> string
+
+std::print(
+    coolFunction()
+);
+
+// Outputs: Hello!
+
+// We can also use arrow functions!
+
+//  coolFunction() ==> {
+//    std::print(phase);
+//  };
+
+// You will notice that this function produces 
+// an erroneos resault!
+//  `No class std`
+// This is due to the arrow function being
+// a completely clean instance
+// We can denote that we would like it to use 
+// global functions and variables through
+//  `.globals`
+
+coolFunction() ==> {
+    .globals;
+    std::print(phase);
+};
+
+// If you don't want to polute the instance
+// you can just re-import `std` or any 
+// libraries for that matter.
+
+coolFunction() ==> {
+    import "./std.ppy";
+    std::print(phase);
+};
+
+//
+//  Aliases
+//
+
+// One major feature taken from C++ is
+// aliasing. It allows us to rename things 
+// such as `std::line_print`
+// to `line`
+
+#define std::print_line ? line;
+
+line(); // Effectively prints `\n`
+
+//
+// Loops and Logic
+//
+
+// Logic is simple
+
+if (x == 2){
+    std::print("Wow!");
+} else if (x == 4) {
+    std::print("Cool!");
+} else {
+    std::print("WHAT?");
+}
+
+// Loops are too!
+
+let i = 0;
+
+while( i != 10 ){
+    // But you need to declare `.globals` since 
+    // we are interacting with an instance!
+    .globals;
+    let i = i + 1;
+    std::print(i);
+}
+
+//
+//  (WIP) Classes
+//
+
+class Test {
+    // Variable `x` in class Test
+    let x = 2;
+    func Test::test(){} -> any
+}
+
+// Compare two `x`s
+std::print(Test::x); // 2
+std::print(x);       // 4
+
+// Note! 
+//  A class works more like a namespace 
+//  which can still be edited even after 
+//  declaration. To create a new instance
+//  directly invoke the constructor with
+//   `CLASS -> OBJECT;`
+//
+//  {THIS IS WIP!}
+
+Test -> object;
+
+std::print(Test::x);
+std::print(object::x);
+
+// Realisticly one should not be able to directly 
+// influence a class's attribute. For this you 
+// must use a setter 
+
+void(null) ==> {line();};
+
+//
+// Templating
+//
+
+class template{
+    // generic = TARGET TYPE ??
+    let generic = null;
+}
+
+#define template::generic ? T;
+
+func try(x of T){
+    import "./std.ppy";
+    std::print_type(
+        x
+    );
+} -> T
+
+try(<T>"Hello!");
+// ?UnkownType? Since the type is not defined fully! (I think)

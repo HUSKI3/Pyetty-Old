@@ -3,17 +3,23 @@
 // Output to console
 func std::print( value ){
   .globals;
-  $`exec("import sys") or sys.stdout.write(str(etty.value) + '\n')`;
+  $`exec("import sys") or sys.stdout.write(str(etty.value['VALUE'] if type(etty.value) == dict else etty.value) + '\n')`;
 } -> None
 
 // Output to console
 func std::fprint( value ){
   .globals;
-  $`exec("import sys") or sys.stdout.write(str(etty.value))`;
+  $`exec("import sys") or sys.stdout.write(str(etty.value['VALUE'] if type(etty.value) == dict else etty.value))`;
+} -> None
+
+// Output the type of the variable to console
+func std::print_type( value ){
+  .globals;
+  $`exec("import sys") or sys.stdout.write(str(etty.value['TYPE'] if type(etty.value) == dict else '?UnknownType?'))`;
 } -> None
 
 // Output to console
-func std::lprint(){
+func std::print_line(){
   .globals;
   $`exec("import sys") or sys.stdout.write("\n")`;
 } -> None
@@ -50,4 +56,9 @@ func std::toString( variable ){
 // Convert object to Int
 func std::toInt( variable ){
     return $`int(etty.variable)`;
+} -> Int
+
+// Convert object to List
+func std::toList( variable ){
+    return $`list(etty.variable)`;
 } -> Int

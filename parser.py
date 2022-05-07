@@ -97,6 +97,7 @@ class PyettyParser(Parser):
     def statement(self, p):
         return p.import_statement
 
+
     @_("sandbox")
     def statement(self, p):
         return p.sandbox
@@ -150,7 +151,7 @@ class PyettyParser(Parser):
             p.lineno,
         )
     
-    @_("'?' ';'")
+    @_("'?' expression")
     def debug_call(self, p):
         return (
             "DEBUG_CALL",
@@ -165,6 +166,50 @@ class PyettyParser(Parser):
             {"FUNCTION_ARGUMENTS": {}, "ID": p.expression},
             p.lineno,
         )
+    
+    @_("'#' DEFINE expression '?' ID")
+    def function_call(self, p):
+        return (
+            "DEFINE",
+            {
+                "TO": p.ID, 
+                "EXPRESSION": p.expression
+            },
+            p.lineno,
+        )
+    
+    @_("'#' DEPENDS expression")
+    def function_call(self, p):
+        return (
+            "DEPENDS",
+            {
+                "TO": p.expression
+            },
+            p.lineno,
+        )
+    
+    @_("ID TARROW ID")
+    def function_call(self, p):
+        return (
+            "NEWOBJECT",
+            {
+                "FROM": p.ID0, 
+                "TO": p.ID1
+            },
+            p.lineno,
+        )
+    
+    @_("'<' ID '>' expression")
+    def function_call(self, p):
+        return (
+            "TYPECONVERT",
+            {
+                "VAR": p.expression, 
+                "TO": p.ID
+            },
+            p.lineno,
+        )
+
 
     @_("expression '(' empty ')' FARROW '{' program '}'")
     def function_call(self, p):
@@ -173,6 +218,17 @@ class PyettyParser(Parser):
             {
                 "FUNCTION_ARGUMENTS": {},
                 "ID": p.expression,
+                "ONCOMPLETE": p.program
+            },
+            p.lineno,
+        )
+    
+    @_("'{' program '}'")
+    def function_call(self, p):
+        return (
+            "FUNCTION_CALL",
+            { 'FUNCTION_ARGUMENTS': {'POSITIONAL_ARGS': (('NULL', 'NULL'),)},
+                "ID": ('ID', {'VALUE':'void'}),
                 "ONCOMPLETE": p.program
             },
             p.lineno,
@@ -280,6 +336,14 @@ class PyettyParser(Parser):
         return (
             "VARIABLE_ASSIGNMENT",
             {"ID": p.ID, "EXPRESSION": p.expression},
+            p.lineno,
+        )
+    
+    @_("LET ID ':' ID '=' expression ';'")
+    def variable_assignment(self, p):
+        return (
+            "VARIABLE_ASSIGNMENT",
+            {"ID": p.ID0, "TYPE":p.ID1, "EXPRESSION": p.expression},
             p.lineno,
         )
 
@@ -454,6 +518,14 @@ class PyettyParser(Parser):
     @_("ID OF ID")
     def expression(self, p):
         return ("TYPED", {"ID": p.ID0, "TYPE": p.ID1}, p.lineno)
+    
+    @_("'&' ID")
+    def expression(self, p):
+        return ("POINTER", {"ID": p.ID}, p.lineno)
+    
+    @_("'*' ID")
+    def expression(self, p):
+        return ("RESOLVE", {"ID": p.ID}, p.lineno)
 
     @_("'-' expression %prec UMINUS")
     def expression(self, p):

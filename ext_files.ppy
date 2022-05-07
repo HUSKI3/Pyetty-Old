@@ -1,0 +1,13 @@
+#depends "std";
+
+// Let's create the library for writing to a file. 
+// We will call this ext_files
+
+// Our namespace will be defined by the file
+// so we can define the functions with the 
+// namespace reference freely
+
+func ext_files::read(file of string) {
+    // Call python here
+    $`open(etty.file, 'r').read()`;
+} -> string

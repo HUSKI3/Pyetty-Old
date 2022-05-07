@@ -79,7 +79,8 @@ class Vibe:
             'int32':ir.IntType(32),
             'int64':ir.IntType(64),
             'bool':ir.IntType(1),
-            'string': ir.ArrayType(ir.IntType(8),1),
+            'string': ir.ArrayType(ir.IntType(8), 1),
+            'pstring': ir.IntType(8).as_pointer(),
             'float':ir.FloatType(),
             'double':ir.DoubleType(),
             'none':ir.VoidType(),
@@ -90,7 +91,8 @@ class Vibe:
             'FUNCTION_DECLARATION': self.create_func,
             'FUNCTION_CALL': self.call_function,
             'RETURN': self.create_return,
-            'CONDITIONAL': self.conditional
+            'CONDITIONAL': self.conditional,
+            'POINTER': self.create_pointer
         }
 
         self.module  = ir.Module("_main")
@@ -118,12 +120,25 @@ class Vibe:
 
         _value, _type = self.assume(tree['EXPRESSION']) 
 
+        if 'TYPE' in tree:
+            if type(_type) == ir.types.PointerType:
+                print("POinter needds to be resolveddlm,qwldmwdql")
+                _value = self.builder.load(_value)
+            #if _type != self.types[tree['TYPE']]:
+            #    t=self.types[tree['TYPE']]
+            #    raise Fail(f"Invalid typed object supplied for {tree['ID']} which is assumed to be {_type} but was declared as {t}")
+            #else:
+            print(type(_type))
+            _type = self.types[tree['TYPE']]
+
+
         if _name not in self.objects:
             ptr = self.builder.alloca(_type)
             self.builder.store(_value, ptr)
             self.objects[_name] = {'VALUE':_value, 'TYPE':_type}
         else:
             ptr, _ = self.objects[_name]
+            print(f"{_name} -> {ptr}")
             self.builder.store(_value, ptr)
     
     def resolve_expression(self, op, lhs, rhs):
@@ -210,44 +225,37 @@ class Vibe:
 
         if _if:
             _code = _if['CODE']
+            _code_else = _else['CODE']
             _condition = _if['CONDITION']
-            print(_condition)
-            quit()
-            _condition = self.resolve_expression('>', _condition[1], _condition[2])
-            with self.builder.if_then(_condition):
-                self.run(tree=_code)
-                
-            if _elif:
-                for _e in _elif[1:]:
-                    if _e is None:
-                        continue
-                    if type(_e) == tuple:
-                        _e = _e[0]
-                    _code = _e['CODE']
-                    _condition = _e['CONDITION']
-                    if self.eval_expr(_condition):
-                        self.run(tree=_code)
-                        elif_ran = True
-
-            if _else and not elif_ran:
-                _code = _else['CODE']
-                _condition = _if['CONDITION']
-                if not self.eval_expr(_condition):
+            #if _condition in 
+            _condition = self.resolve_expression('>', _condition[1], _condition[2])[0]
+            
+            if not _else:
+                with self.builder.if_then(_condition):
                     self.run(tree=_code)
+            else:
+                with self.builder.if_else(_condition) as (true,otherwise):
+
+                  with true:
+                      # Runs this if true
+                      self.run(tree=_code)
+
+                  with otherwise:
+                      # Runs this if false
+                      self.run(tree=_code_else)
+        
     
     def create_func(self, tree):
         _name = tree['ID']
         _code = tree['PROGRAM']
-        _arg_types = []#[x[1]['TYPE'].lower() for x in tree['FUNCTION_ARGUMENTS']['POSITIONAL_ARGS']]
-        _arg_names = []#[x[1]['ID'] for x in tree['FUNCTION_ARGUMENTS']['POSITIONAL_ARGS']]
+        _arg_types = [] #[x[1]['TYPE'].lower() for x in tree['FUNCTION_ARGUMENTS']['POSITIONAL_ARGS']]
+        _arg_names = [] #[x[1]['ID'] for x in tree['FUNCTION_ARGUMENTS']['POSITIONAL_ARGS']]
         _returns = tree['RETURNS_TYPE']
 
         if _returns[1]['VALUE'].lower() in self.types:
             _returns = self.types[_returns[1]['VALUE'].lower()]
 
-        print(_arg_types)
         fnty = ir.FunctionType(_returns,[])
-        print(fnty)
         func = ir.Function(self.module, fnty, name=_name)
 
         block = func.append_basic_block(f'{_name}_entry')
@@ -271,11 +279,12 @@ class Vibe:
             
             # Add function's parameter to stored variables
             self.objects[x[1]] = {"VALUE":ptr, "TYPE":typ}
+
         
         self.run(_code)
 
         self.objects = prv_objects
-        self.objects[_name] = {"VALUE":func, "RETURNS":_returns}
+        self.objects[_name] = {"_func":func, "_ret":_returns}
 
         self.builder = prv_builder
     
@@ -283,6 +292,8 @@ class Vibe:
         '''
             C's builtin Printf function
         '''
+        print("Params:", params)
+        input()
         format = params[0]
         params = params[1:]
         zero = ir.Constant(ir.IntType(32),0)
@@ -293,20 +304,42 @@ class Vibe:
         format = self.builder.bitcast(format, ir.IntType(8).as_pointer())
         func = self.objects['print']['_func']
         return self.builder.call(func,[format,*params])
+    
+    def create_pointer(self, tree):
+        if tree[0]['ID'] in self.objects:
+            value, Type = self.objects[tree[0]['ID']]['VALUE'],\
+                            self.objects[tree[0]['ID']]['TYPE']
+        else:
+            value, Type = self.assume(tree[0]['ID'])
+        zero = ir.Constant(ir.IntType(32),0)
+        ptr = self.builder.alloca(Type)
+        format = ptr
+        format = self.builder.gep(format, [zero, zero])
+        format = self.builder.bitcast(format, ir.IntType(8).as_pointer())
+        return (format, value)
+    
+    def resolve(self, tree):
+        # Lmao fuck it
+        val = self.builder.load(self.objects[tree[0]['ID']]['VALUE'])
+        return val, self.objects[tree[0]['ID']]['TYPE']
 
     def call_function(self, tree):
+        if isinstance(tree, tuple):
+            tree = tree[0]
         print(tree)
         _name = tree['ID'][1]['VALUE']
-        _posargs = tree['FUNCTION_ARGUMENTS']['POSITIONAL_ARGS']
+        _posargs = tree['FUNCTION_ARGUMENTS']['POSITIONAL_ARGS'] if 'POSITIONAL_ARGS' in tree['FUNCTION_ARGUMENTS'] else None
         _kwargs = None #WIP
 
         _posargs_types = []
         _posargs_values = []
+
         if _posargs:
             for arg in _posargs:
                 value, type = self.assume(arg)
                 _posargs_types.append(type)
                 _posargs_values.append(value)
+
         print(_posargs_values)
         print('\n')
         print(_posargs_types)
@@ -316,7 +349,8 @@ class Vibe:
             ret = self.print(_posargs_values, _posargs_types[0])
         else:
             ret = self.builder.call(func, _posargs_values)
-        
+        print(ret, ret_type)
+        input()
         return ret, ret_type
 
 
@@ -353,14 +387,6 @@ class Vibe:
                     self.objects.get(tree[0]['VALUE'])['VALUE'], 
                     self.objects.get(tree[0]['VALUE'])['TYPE']
                 )
-    
-    def cmpr_greater(self, tree):
-        print(tree)
-        lhs, lhs_type = self.assume(tree[0])
-        rhs, rhs_type = self.assume(tree[1])
-        value = self.builder.icmp_signed('>',lhs,rhs)
-        Type = ir.IntType(1)
-        return value, Type
 
     def assume(self, tree):
         actions = {
@@ -368,8 +394,11 @@ class Vibe:
             'INT': self.create_int,
             'ID': self.fetch_id,
             'STRING': self.create_string,
-            # Logic
-            'GREATER': self.cmpr_greater
+            # Functions
+            'FUNCTION_CALL': self.call_function,
+            # Logical?
+            'POINTER': self.create_pointer,
+            'RESOLVE': self.resolve
         }
         _body = tree[1:]
 
@@ -386,6 +415,7 @@ class Vibe:
     def run(self, tree):
         for node in tree:
             if node[0] in self.defaults:
+                print(f'[{node[0]}] -> {node[1]}')
                 self.defaults[node[0]](node[1])
             else:
                 raise Fail(f"[RUN] -> Unknown action '{node[0]}' found. Line {node[2]}")
@@ -406,11 +436,13 @@ module.triple = llvm.get_default_triple()
 llvm.initialize()
 llvm.initialize_native_target()
 llvm.initialize_native_asmprinter()
+
 print('Module:')
 try:
     print(str(module))
 except AttributeError:
     print('Failed :(')
+
 print('Module end')
 llvm_ir_parsed = llvm.parse_assembly(str(module))
 llvm_ir_parsed.verify()
@@ -420,9 +452,6 @@ engine.finalize_object()
 # Run the function with name func_name. This is why it makes sense to have a 'main' function that calls other functions.
 entry = engine.get_function_address('main')
 cfunc = CFUNCTYPE(c_int)(entry)
-print('The llvm IR generated is:')
-#print(module)
-print()
 start_time = time()
 result = cfunc()
 end_time = time()
