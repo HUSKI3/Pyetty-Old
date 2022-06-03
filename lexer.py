@@ -43,8 +43,12 @@ class PyettyLexer(Lexer):
         OF,
         GLOBAL,
         DEFINE,
-        CHECK,
-        DEPENDS
+        DEBUG,
+        DEPENDS,
+        SELFISH,
+        ENV,
+        FROM,
+        INIT
     }
     literals = {
         "+",
@@ -108,7 +112,11 @@ class PyettyLexer(Lexer):
     ID["globals"] = GLOBAL
     ID["define"] = DEFINE
     ID["depends"] = DEPENDS
-    ID["check"] = CHECK
+    ID["debugThis"] = DEBUG
+    ID["selfish"] = SELFISH
+    ID["env"] = ENV
+    ID["from"] = FROM
+    ID["_init"] = INIT
 
     TARROW = r'->'
     FARROW = r'\=\=>'

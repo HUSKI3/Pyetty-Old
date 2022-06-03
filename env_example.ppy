@@ -1,0 +1,35 @@
+let name = <string><string>null;
+$`quit()`;
+import "./std.ppy";
+import "./ext_files.ppy";
+
+#define std::print ? print;
+
+class State{
+    let id = <int>null;
+    let name = <string><string>null;
+}
+
+func State::try(){
+    .selfish;
+    let id = 30;
+    return <State>null;
+} -> State
+
+State -> defaultState;
+
+if (
+    defaultState::try() // <TYPE>null is truthy! 
+   ) { 
+    .env from defaultState {   // Interact with the namespace, emulated!
+        print(id); // Should be 30!
+        print(name); // Should be null of type string!
+
+        let id = 2; // This is only for local env!
+    };
+}
+
+print(defaultState::id); // This should stay 30!
+print(defaultState::try()); // This is <State>null!
+
+// ESP - Enviroment Spec Programming

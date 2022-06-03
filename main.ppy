@@ -1,10 +1,52 @@
 import "./std.ppy";
 import "./ext_files.ppy";
 
-let contents = ext_files::read("k.py");
+#define std::print ? print;
 
-std::print(contents);
 
-void(null) ==> {
-    std::print("");
+// Simple RPG game
+
+class Level {
+    let mobs = {
+        "goblin":[2,2] // 2 hp, and 2 dp
+    };
+}
+
+class Player {
+    let hp = <int>null;
+    let mp = <int>null;
+    let inv = <dict>null;
+}
+
+// Our class methods
+func Player::setHealth(new) {
+    .selfish;
+    let hp = new;
+} -> null
+
+func Player::takeDamage(damage) {
+    .selfish;
+    let hp = hp - damage;
+} -> null
+
+// Intialize char with it's data
+Player -> char;
+
+char::setHealth(20);
+print(char::hp);
+
+// Let's take some damage in this level!
+Level -> currentLevel;
+
+.env from currentLevel {
+    .globals; // For char
+    let goblin = mobs^"goblin";
+    while (char::hp != 0){
+        .globals;
+        let dmg = goblin^1;
+        char::takeDamage(dmg);
+        //$`print(f"Character took {etty.goblin[1]} damage!\nNow at: {etty.char.hp}")`;
+    }
 };
+
+print(char::hp);

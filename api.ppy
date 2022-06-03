@@ -1,0 +1,31 @@
+import "./std.ppy";
+import "./ext_files.ppy";
+
+#define std::print ? print;
+
+// Define route class
+class Route {
+    let name = <string>null;
+    let uri  = <string>null;
+}
+
+class RouteHandler{
+    .globals;
+
+    let api = $`exec("from fastapi import FastAPI") or FastAPI()`;
+    
+    Route -> index;
+    let index = index; 
+
+    func index::default() {
+        return $`def hello(): return "a"`;
+    } -> any
+}
+
+.env from RouteHandler {
+    //print(index::default);
+    let route = index::default();
+    print(route);
+
+    $`etty.api.get(etty.index)(etty.route)`;
+};

@@ -151,6 +151,9 @@ class template{
 
 #define template::generic ? T;
 
+
+#define std::print ? print;
+
 func try(x of T){
     import "./std.ppy";
     std::print_type(

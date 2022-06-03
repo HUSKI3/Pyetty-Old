@@ -1,20 +1,36 @@
+from os import name
 import pprint
-import logging
-from re import L, M
 import sys
 
 from lexer import PyettyLexer
 from parser import PyettyParser
 
+
+def match_to_python(typed_object, int_instance):
+    t = typed_object
+    #print(t)
+    if type(t) == list\
+        and len(t) == 2:
+        return f"[{t[1]}:{t[0]}]" 
+    elif type(t) == dict:
+        try:
+            t = PyettyInterpreter.eval_expr(int_instance, t)
+            return t
+        except: # Except the failures to resolve, we don't care about them
+            t = t
+        n = '\n'
+        return f"_dict({t})"
+    else: return t
+
 class Locale:
-    def __init__(self, d):
+    def __init__(self, int_instance, d):
         for _ in d:
             #print('Adding',_)
-            setattr(self, _, d[_])
+            #print(d[_], type(d[_]), match_to_python(d[_], int_instance))
+            setattr(self, _, match_to_python(d[_], int_instance))
         #print(self.__dict__)
 
-import numba
-from numba import cuda
+#import numba
 
 
 class PyettyInterpreter:
@@ -38,6 +54,7 @@ class PyettyInterpreter:
         self.lexer = lexer
         self.parser = parser
         self.parent = parent
+        self.selfish = False # Selfish-nessss!
 
         self.defaults = {
             'VARIABLE_ASSIGNMENT': self.create_var,
@@ -48,6 +65,7 @@ class PyettyInterpreter:
             'IMPORT': self.eval_import,
             'CLASS_DECLARATION': self.create_class,
             'GLOBALS':self.load_globals,
+            'SELFISH':self.load_selfish,
             'RETURN':self.returns,
             'WHILE': self.whiles,
             'BREAK': self.breaks,
@@ -55,10 +73,11 @@ class PyettyInterpreter:
             'CONDITIONAL': self.proc_conditional,
             'DEFINE': self.define,
             'DEPENDS': self.depends,
-            'NEWOBJECT': self.new_object
+            'NEWOBJECT': self.new_object,
+            'DEBUG': self.debug
         }
 
-    @numba.jit(target_backend='cuda',forceobj=True)
+    #@numba.jit(target_backend='cuda',forceobj=True)
     def run(self, tree=None):
         self.create_defaults()
         pg = self.program
@@ -77,7 +96,10 @@ class PyettyInterpreter:
             'RETURNS_TYPE': ('ID', {'VALUE': 'Any'}, 26)}
         )
 
-            
+    def debug(self, line):
+        print(f'__[{self.name}:{line}]__\nLocals:')
+        pprint(self.locals)
+
 
     def eval_import(self, tree):
         path = self.eval_expr(tree['EXPRESSION'])
@@ -124,10 +146,10 @@ class PyettyInterpreter:
     
     def new_object(self, tree):
         if tree['FROM'] in self.locals:
-            self.locals[tree['TO']] = self.locals[tree['FROM']].copy()[tree['FROM']]
+            #self.locals[tree['TO']] = self.locals[tree['FROM']].copy()[tree['FROM']]
             _vars = self.locals[tree['FROM']].copy()
             del _vars[tree['FROM']]
-            self.locals[tree['TO']] = _vars
+            self.locals[tree['TO']] = _vars.copy()
             self.locals[tree['TO']][tree['TO']] = self.locals[tree['FROM']].copy()[tree['FROM']]
         else:
             raise Exception(f"[NewObject] No such class '{tree['FROM']}'")
@@ -239,12 +261,20 @@ class PyettyInterpreter:
                     "TYPE": tree["EXPRESSION"][0],
                     "VALUE": ticked
                 }
-        if self.parent is None:
-            self.locals[tree["ID"]] = packed
+        if '__class' in self.locals:
+            #print(self.name, self.namespace)
+            #print(self.locals['__class'],tree["ID"])
+            if self.locals['__class'] in self.parent.locals:
+                self.parent.locals[self.locals['__class']][tree["ID"]] = packed
+            else:
+                self.locals[tree["ID"]] = packed
         else:
-            self.locals[tree["ID"]] = packed
-            if '__globals' in self.locals:
-                self.parent.locals[tree["ID"]] = packed
+            if self.parent is None:
+                self.locals[tree["ID"]] = packed
+            else:
+                self.locals[tree["ID"]] = packed
+                if '__globals' in self.locals:
+                    self.parent.locals[tree["ID"]] = packed
         #print(tree["ID"],{"TYPE": tree["EXPRESSION"][0],"VALUE": ticked})
 
     def create_fun(self, tree):
@@ -255,7 +285,7 @@ class PyettyInterpreter:
             self.locals[tree['NAMESPACE']][tree['ID']] = Function(
                 tree,
                 tree['ID'],
-                {},
+                self.locals[tree['NAMESPACE']],
                 {}, parent=self, lexer=self.lexer, parser=self.parser
             )
 
@@ -272,6 +302,10 @@ class PyettyInterpreter:
     def load_globals(self, tree):
         self.locals = {**self.locals, **self.parent.locals}
         self.locals['__globals'] = {"VALUE":True}
+    
+    # WIP
+    def load_selfish(self, tree):
+        self.selfish = True
     
     def returns(self, tree):
         # print(tree)
@@ -309,14 +343,22 @@ class PyettyInterpreter:
             self.methods[_to] = self.methods[_from[1]['VALUE']]
 
     
-    def run_function(self, tree):
+    def run_function(self, tree, _env=None):
         returns = []
+
 
         if 'ONCOMPLETE' in tree:
             _oncomplete = list(tree['ONCOMPLETE'])
-            _oncomplete.insert(0, ['GLOBALS', {'VALUE': ''}, 0] )
+            if tree['ID'][1]['VALUE'] != 'void':
+                _oncomplete.insert(0, ['GLOBALS', {'VALUE': ''}, 0] )
+
         else:
             _oncomplete = None
+
+        if _env is None:
+            if 'ENV_FROM' in tree:
+                _env = self.locals[tree['ENV_FROM']]
+            else: _env = {}
 
         if tree['ID'][0] == 'CLASS_ATTRIBUTE':
             _func = tree['ID'][1]['ATTRIBUTE']
@@ -337,14 +379,21 @@ class PyettyInterpreter:
             if _class in self.locals:
                 if _class in self.locals[_class]:
                     if _func in self.locals[_class][_class]:
-                        returns = self.locals[_class][_class][_func].run(_vars, {})
+                        funct = self.locals[_class][_class][_func]
                     else:
-                        raise Exception(f'!!! Unbound method [{_func}], locals: {self.locals[_class]}')
+                        if _func in self.locals[_class]:
+                            funct = self.locals[_class][_func]
+                        else:
+                            raise Exception(f'!!! Unbound method [{_func}], locals: {self.locals[_class]}')
                 else:
                     if _func in self.locals[_class]:
-                        self.locals[_class][_func].run(_vars, {})
+                        funct = self.locals[_class][_func]
                     else:
                         raise Exception(f'!!! Unbound method [{_func}], Class locals: {self.locals[_class]}\n Globals: {self.locals}')
+
+                funct.namespace = _class
+                returns = funct.run(_vars, {})
+
             else:
                 raise Exception(f'No class {_class} in {self.locals}!')
 
@@ -373,7 +422,12 @@ class PyettyInterpreter:
                     _vars.append(resed)
 
             # Run it!
-            returns = self.methods[_func].run(_vars, {})
+            funct = self.methods[_func]
+
+            #if _env:
+            #    print(funct.locals)
+
+            returns = funct.run(_vars, {}, env=_env)
         
         #print(f'Ran {_func} and got {returns}')
 
@@ -397,18 +451,17 @@ class PyettyInterpreter:
             else:
                 self.locals['phase'] = returns if len(returns) > 1 else returns[0]
 
-            self.run_function({ 
+            returns = self.run_function({ 
                 'FUNCTION_ARGUMENTS': {
                     'POSITIONAL_ARGS': (
                         ('ID',{'VALUE': 'phase'},0),
                     )
                 },
                 'ID': ('ID', {'VALUE': 'phased'}, 0),
-                }
+                }, _env=_env
             )
+            returns = [2]
         else:
-            #print(returns)
-            #input()
             for res in returns:
                 if type(res) == tuple and res[0] not in ['STRING','INT','BOOL']:
                     if res[0] == 'ID':
@@ -452,7 +505,16 @@ class PyettyInterpreter:
         return one + two
 
     def eval_sub(self, tree):
-        return self.eval_expr(tree[0]) - self.eval_expr(tree[1])
+        one = self.eval_expr(tree[0])
+        two = self.eval_expr(tree[1])
+        while type(one) == dict:
+            one = self.eval_expr(one)
+            #print('one tried!')
+        while type(two) == dict:
+            two = self.eval_expr(two)
+            #print('two tried!')
+        print(one, two)
+        return one - two
 
     def eval_mul(self, tree):
         return self.eval_expr(tree[0]) * self.eval_expr(tree[1])
@@ -535,6 +597,7 @@ class PyettyInterpreter:
         return _
 
     def get_assoc_index(self, tree):
+        print(tree)
         soc = self.eval_expr(tree[0]['EXPRESSION'])
         idx = tree[0]['INDEX'][1]['VALUE']\
              if tree[0]['INDEX'][1]['VALUE'] not in self.locals\
@@ -549,7 +612,14 @@ class PyettyInterpreter:
     def get_class_attr(self, tree):
         line = tree[1]
         tree = tree[0]
-        tree['CLASS'] = tree['CLASS'][1]['VALUE']
+        try:
+            tree['CLASS'] = tree['CLASS'][1]['VALUE']
+        except TypeError:
+            # Assume embedded class
+            if tree['CLASS'] in self.parent.locals:
+                tree['CLASS'] = tree['CLASS']
+            else:
+                raise Exception(f"Failed to fetch class attribute due to class being an invalid string -> {tree['CLASS']}")
         if tree['CLASS'] == 'self':
             if self.parent.name in self.locals:
                 return self.locals[self.parent.name][tree['ATTRIBUTE']]
@@ -566,15 +636,20 @@ class PyettyInterpreter:
         var = list(tree[0]['VAR'])
         var[0] = tree[0]['TO']
         return var
+    
+    def eval_func(self, tree):
+        return self.run_function(tree[0])
 
     def eval_expr(self, tree, raw=False):
-        # print(tree)
         # New variable type matching
         if type(tree) == dict:
             
             if 'TYPE' in tree:
                 if tree['TYPE'] == 'ASSOC_ARRAY':
                     return tree['VALUE']
+                if tree['TYPE'] == 'FUNCTION_CALL':
+                    if type(tree['VALUE']) == tuple:
+                        return self.eval_expr(tree['VALUE'])
 
             # Below is only valid for legacy code,
             # With the addition of assoc arrays 
@@ -600,7 +675,6 @@ class PyettyInterpreter:
         _act = tree[0]
         _body = tree[1:]
         _val = None
-
         self.procs = {
             # Types
             'STRING': self.eval_str,
@@ -611,6 +685,7 @@ class PyettyInterpreter:
             'ASSOC_ARRAY': self.create_dict,
             'GET_ASSOC_INDEX': self.get_assoc_index,
             'CLASS_ATTRIBUTE': self.get_class_attr,
+            'FUNCTION_CALL': self.eval_func,
             # Math
             'ADD': self.eval_add,
             'SUB': self.eval_sub,
@@ -622,7 +697,8 @@ class PyettyInterpreter:
             # Logik
             'NOT_EQEQ': self.eval_not_equal,
             'EQEQ': self.eval_equal,
-            'GREATER': self.eval_grtr
+            'GREATER': self.eval_grtr,
+            'PYTHON_CODE': self.python_eval
         }
 
         if _act in self.procs:
@@ -634,10 +710,17 @@ class PyettyInterpreter:
         if _val is not None:
             return _val
         else:
-            raise Exception(
-                f'Variable "{_body[0]}" was never declared or failed to resolve. Line: {_body[1]} Act:{_act} Body:{_body}')
-
+            try:
+                raise Exception(
+                    f'Variable "{_body[0]}" was never declared or failed to resolve. Line: {_body[1]} Act:{_act} Body:{_body}')
+            except Exception as e:
+                print(e, tree, 'eval_expr ;)')
+                quit()
     def python_eval(self, tree):
+        try:
+            if isinstance(tree, tuple): tree = tree[0]
+        except:
+            print(tree)
         code = tree["CODE"]
         x = {}
         for _ in self.locals:
@@ -645,7 +728,7 @@ class PyettyInterpreter:
                 x[_] = self.eval_expr(self.locals[_])
             except:
                 x[_] = self.locals[_]
-        return eval(code, {'etty': Locale(x)})
+        return eval(code, {'etty': Locale(self, x)})
 
     def python_exec(self, tree):
         code = tree["CODE"]
@@ -655,18 +738,26 @@ class PyettyInterpreter:
                 x[_] = self.eval_expr(self.locals[_])
             except:
                 x[_] = self.locals[_]
-        return exec(code, {'etty': Locale(x)})
+        return exec(code, {'etty': Locale(self, x)})
 
 
 class Function(PyettyInterpreter):
-    def __init__(self, tree, name, local_args, global_args, parent=None,lexer=None,parser=None):
+    def __init__(self, tree, name, local_args, global_args, parent=None,lexer=None,parser=None,namespace=None):
         PyettyInterpreter.__init__(self, tree, name, local_args, global_args, parent=parent,lexer=lexer,parser=parser)
         self.tree = tree
+        self.namespace = namespace
+        if 'ENV_FROM' in tree:
+            self.enved = True  
+            print("ENV FROM????? ")
+        else: self.enved = False
         if 'POSITIONAL_ARGS' in self.tree['FUNCTION_ARGUMENTS']:
             self.required_args = self.proc_args()
         else:
             self.required_args = []
         # self.run([('STRING','hello'),('INT',2),('INT',3)],{}) # for testing run after declaration
+
+    def __repr__(self) -> str:
+        return f"Fuc[{self.name}]"
 
     def proc_args(self):
         proced_args = []
@@ -678,7 +769,7 @@ class Function(PyettyInterpreter):
                 proced_args.append(arg)
         return proced_args
 
-    def run(self, args={}, kwargs={}, tree=None):
+    def run(self, args={}, kwargs={}, tree=None, env={}):
         if tree: 
             for line in tree:
                 if line[0] in self.defaults:
@@ -702,11 +793,19 @@ class Function(PyettyInterpreter):
                             'VALUE': args[i]['VALUE']
                         }
                     else:
-                        raise Exception(f'Invalid non-typed object supplied [{args[i]["TYPE"]}] for type [{arg["TYPE"]}]')
+                        x = self.eval_expr(args[i])
+                        if x:
+                            args[i] = x
+                        else:
+                            raise Exception(f'Invalid non-typed object supplied [{args[i]["TYPE"]}] for type [{arg["TYPE"]}]')
                 elif type(args[i]) == tuple:
                     if args[i][0] == 'TYPECONVERT':
                         # Manually convert type
                         args[i] = args[i][1]['VALUE']
+                    else:
+                        # Try to resolve
+                        #print(args[i])
+                        args[i] = self.eval_expr(args[i])
                     if arg['TYPE'].upper() == args[i][0].upper():
                         self.locals[arg['ID']] = {
                             'TYPE': arg['TYPE'].upper(),
@@ -737,22 +836,29 @@ class Function(PyettyInterpreter):
                             'TYPE': args[i][0],
                             'VALUE': args[i][1]
                         }
-                elif type(args[i]) in [str, int, bool]:
+                elif type(args[i]) in [str, int, bool, list]:
                     self.locals[arg[1]['VALUE']] = {
                         'TYPE': 'ANY',
                         'VALUE': args[i]
                     }
+                
                 else:
                     raise Exception(
-                        f'Invalid non-typed object supplied {args[i]}')
+                        f'Invalid non-typed object supplied {args[i]}. Wanted: {self.required_args}')
 
         returns = []
         self.parent.skip = False
 
+        if env:
+            self.locals = env | {'x': None}
         
         if self.tree:
             for line in self.tree['PROGRAM']:
                 #print(f'Action: [{line[0]}] :: {line[1]}')
+                if self.selfish == True:
+                    self.locals = self.locals | {"__class":self.namespace}
+                    self.selfish = False
+
                 if line[0] == 'SKIP':
                     self.parent.skip = True
                     pass
@@ -760,7 +866,7 @@ class Function(PyettyInterpreter):
                 elif line[0] == 'BREAK':
                     self.parent.breaking = True
                     break
-
+                
                 elif line[0] in self.defaults:
                     ret = self.defaults[line[0]](line[1])
                     #print(f'>> {ret}')

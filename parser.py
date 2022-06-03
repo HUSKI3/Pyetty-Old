@@ -129,6 +129,10 @@ class PyettyParser(Parser):
     @_("SKIP ';'")
     def break_statement(self, p):
         return ("SKIP", p.lineno)
+    
+    @_("DEBUG ';'")
+    def break_statement(self, p):
+        return ("DEBUG", p.lineno)
 
     @_("RETURN expression ';'")
     def return_statement(self, p):
@@ -199,6 +203,18 @@ class PyettyParser(Parser):
             p.lineno,
         )
     
+    @_("ID TARROW ID '(' function_arguments ')'")
+    def function_call(self, p):
+        return (
+            "NEWOBJECT",
+            {
+                "FROM": p.ID0, 
+                "TO": p.ID1,
+                "ARGS": p.function_arguments
+            },
+            p.lineno,
+        )
+    
     @_("'<' ID '>' expression")
     def function_call(self, p):
         return (
@@ -223,7 +239,7 @@ class PyettyParser(Parser):
             p.lineno,
         )
     
-    @_("'{' program '}'")
+    @_("'.' ENV '{' program '}'")
     def function_call(self, p):
         return (
             "FUNCTION_CALL",
@@ -233,11 +249,36 @@ class PyettyParser(Parser):
             },
             p.lineno,
         )
+    
+    @_("'.' ENV FROM ID '{' program '}'")
+    def function_call(self, p):
+        return (
+            "FUNCTION_CALL",
+            { 'FUNCTION_ARGUMENTS': {'POSITIONAL_ARGS': (('NULL', 'NULL'),)},
+                "ID": ('ID', {'VALUE':'void'}),
+                "ONCOMPLETE": p.program,
+                "ENV_FROM": p.ID
+            },
+            p.lineno,
+        )
 
     @_("FUNC ID '(' function_arguments ')' '{' program '}' TARROW expression")
     def function_declaration(self, p):
         return (
             "FUNCTION_DECLARATION",
+            {
+                "FUNCTION_ARGUMENTS": p.function_arguments,
+                "ID": p.ID,
+                "PROGRAM": p.program,
+                "RETURNS_TYPE": p.expression
+            },
+            p.lineno,
+        )
+    
+    @_("INIT '(' function_arguments ')' '{' program '}' ';'")
+    def function_declaration(self, p):
+        return (
+            "INIT",
             {
                 "FUNCTION_ARGUMENTS": p.function_arguments,
                 "ID": p.ID,
@@ -510,6 +551,10 @@ class PyettyParser(Parser):
     @_("'.' GLOBAL ';'")
     def import_statement(self, p):
         return ("GLOBALS", {"VALUE":""}, p.lineno)
+    
+    @_("'.' SELFISH ';'")
+    def import_statement(self, p):
+        return ("SELFISH", {"VALUE":""}, p.lineno)
 
     # Statment syntax END
     ###########################################################################
